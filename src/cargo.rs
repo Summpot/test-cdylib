@@ -1,5 +1,7 @@
 use cargo_metadata::Message;
 use serde::Deserialize;
+use serde_json::Map;
+use std::io::{BufReader, Cursor};
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 
@@ -73,7 +75,7 @@ pub fn build_example(name: &str) -> Result<PathBuf> {
 
 pub fn parse_output(result: Output) -> Result<PathBuf> {
     let mut artifact = None;
-    for message in cargo_metadata::parse_messages(result.stdout.as_slice()) {
+    for message in Message::parse_stream(Cursor::new(result.stdout)) {
         match message? {
             Message::CompilerMessage(m) => eprintln!("{}", m),
             Message::CompilerArtifact(a) => artifact = Some(a),
@@ -84,9 +86,19 @@ pub fn parse_output(result: Output) -> Result<PathBuf> {
     if !result.status.success() {
         return Err(Error::CargoFail);
     }
-    artifact
-        .ok_or(Error::CargoFail)
-        .map(|a| a.filenames[0].clone())
+    match artifact {
+        Some(artifact) => artifact
+            .filenames
+            .into_iter()
+            .filter(|filename| match filename.extension() {
+                Some("dll") | Some("dylib") | Some("so") => true,
+                _ => false,
+            })
+            .next()
+            .ok_or(Error::CdylibNotFound)
+            .map(|a| a.into_std_path_buf()),
+        None => Err(Error::CargoFail),
+    }
 }
 
 pub fn metadata() -> Result<Metadata> {

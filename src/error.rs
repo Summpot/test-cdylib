@@ -15,6 +15,7 @@ pub enum Error {
     TomlDe(toml::de::Error),
     TomlSer(toml::ser::Error),
     Json(serde_json::Error),
+    CdylibNotFound,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -34,6 +35,9 @@ impl Display for Error {
             TomlDe(e) => e.fmt(f),
             TomlSer(e) => e.fmt(f),
             Json(e) => e.fmt(f),
+            CdylibNotFound => {
+                write!(f, "can't find cdylib(.dll,.so,.cdylib) in output dir, please check that you have set [crate-type] correctly in Cargo.toml")
+            }
         }
     }
 }
